@@ -1,0 +1,37 @@
+.
+// Usage: node build.js [desktop|android|all]   (default: all)
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const run = (cmd, cwd) => {
+  console.log('\n> ' + cmd);
+  execSync(cmd, { stdio: 'inherit', shell: true, cwd });
+};
+const target = process.argv[2] || 'all';
+const win = process.platform === 'win32';
+
+run('npm install');
+run('npm test'); // stop here if the scheduling engine tests fail
+
+if (target === 'desktop' || target === 'all') {
+  // Builds the installer for the OS you are running on
+  run('npx electron-builder --publish never');
+  console.log('\nDesktop installer is in the dist/ folder.');
+}
+
+if (target === 'android' || target === 'all') {
+  if (!process.env.ANDROID_HOME && !process.env.ANDROID_SDK_ROOT) {
+    console.error('\nSet ANDROID_HOME to your Android SDK folder (Android Studio installs it), and use JDK 17.');
+    process.exit(1);
+  }
+  if (!fs.existsSync('android')) run('npx cap add android');
+  run('npx cap sync android');
+  run(win ? 'gradlew.bat assembleDebug' : './gradlew assembleDebug', 'android');
+  fs.mkdirSync('dist', { recursive: true });
+  fs.copyFileSync(
+    path.join('android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+    path.join('dist', 'study-rotation.apk')
+  );
+  console.log('\nAPK: dist/study-rotation.apk');
+}
